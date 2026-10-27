@@ -3,9 +3,11 @@
     android:id="@+id/wRaiz" android:layout_width="match_parent" android:layout_height="match_parent"
     android:background="@drawable/widget_pilula" android:gravity="center_vertical" android:orientation="horizontal"
     android:paddingStart="18dp" android:paddingEnd="18dp">
-    <ImageView android:id="@+id/wPonto" android:layout_width="10dp" android:layout_height="10dp" android:src="@drawable/widget_ponto" />
+    <ImageView android:id="@+id/wPonto" android:layout_width="9dp" android:layout_height="9dp" android:src="@drawable/widget_ponto" />
     <TextView android:id="@+id/wTexto" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:layout_marginStart="12dp"
-        android:ellipsize="end" android:maxLines="1" android:text="GTA 6 em 23 dias" android:textColor="#FFFFFFFF" android:textSize="14sp" android:textStyle="bold" />
+        android:ellipsize="end" android:maxLines="1" android:text="GTA 6" android:textColor="#FFFFFFFF" android:textSize="14sp" android:textStyle="bold" />
     <TextView android:id="@+id/wExtra" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginStart="8dp"
-        android:text="46%" android:textColor="#A6FFFFFF" android:textSize="12sp" />
+        android:text="22d" android:textColor="#FFFFFFFF" android:textSize="14sp" android:textStyle="bold" />
+    <Chronometer android:id="@+id/wRelogio" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginStart="6dp"
+        android:textColor="#FFFF5D8F" android:textSize="14sp" android:textStyle="bold" />
 </LinearLayout>

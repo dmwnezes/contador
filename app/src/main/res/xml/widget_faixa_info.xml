@@ -2,5 +2,5 @@
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
     android:description="@string/widget_faixa"
     android:initialLayout="@layout/widget_faixa" android:previewLayout="@layout/widget_faixa"
-    android:minWidth="250dp" android:minHeight="40dp" android:targetCellWidth="4" android:targetCellHeight="1"
+    android:minWidth="250dp" android:minHeight="40dp" android:minResizeWidth="180dp" android:targetCellWidth="4" android:targetCellHeight="1"
     android:resizeMode="horizontal" android:updatePeriodMillis="1800000" android:widgetCategory="home_screen" />

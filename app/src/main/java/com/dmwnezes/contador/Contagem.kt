@@ -152,3 +152,25 @@ class Armazem(context: Context) {
         ContadorWidget.atualizarTodos(ctx, e)
     }
 }
+
+/**
+ * Relógio dos widgets: dias inteiros + o resto (segundos dentro do dia) que o Chronometer do Android mostra correndo.
+ * Futuro: conta para baixo até o resto zerar. Passado: conta para cima desde o último "aniversário" do horário.
+ * Null quando é exatamente o momento do evento.
+ */
+data class RelogioWidget(val dias: Long, val resto: Long, val regressivo: Boolean)
+
+fun relogioWidget(c: Contador, agora: LocalDateTime): RelogioWidget? {
+    val s = segundosAte(c, agora)
+    if (s == 0L) return null
+    val a = abs(s)
+    return RelogioWidget(a / 86400, a % 86400, s > 0)
+}
+
+/** Próximo momento em que os widgets precisam ser redesenhados: virada do dia ou fim do resto do destaque. */
+fun proximoTique(destaque: Contador?, agora: LocalDateTime): LocalDateTime {
+    val meiaNoite = agora.toLocalDate().plusDays(1).atStartOfDay()
+    val r = destaque?.let { relogioWidget(it, agora) } ?: return meiaNoite
+    val fim = if (r.regressivo) agora.plusSeconds(r.resto) else agora.plusSeconds(86400 - r.resto)
+    return minOf(meiaNoite, fim)
+}

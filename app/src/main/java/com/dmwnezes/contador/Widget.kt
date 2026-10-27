@@ -1,5 +1,6 @@
 package com.dmwnezes.contador
 
+import android.app.AlarmManager
 import android.app.PendingIntent
 import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProvider
@@ -8,22 +9,16 @@ import android.content.Context
 import android.content.Intent
 import android.content.res.ColorStateList
 import android.os.Build
+import android.os.SystemClock
 import android.util.SizeF
 import android.view.View
 import android.widget.RemoteViews
 import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.ZoneId
 import kotlin.math.abs
 
-private fun rotuloDias(d: Long): String {
-    val n = abs(d)
-    return when {
-        d > 0 -> if (n == 1L) "dia falta" else "dias faltam"
-        d == 0L -> "é hoje!"
-        else -> if (n == 1L) "dia desde" else "dias desde"
-    }
-}
-
-private fun numeroWidget(d: Long) = if (d == 0L) "Hoje" else numero(abs(d))
+const val ACAO_TIQUE = "com.dmwnezes.contador.TIQUE_WIDGET"
 
 private fun abrirApp(ctx: Context) =
     PendingIntent.getActivity(ctx, 0, Intent(ctx, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE)
@@ -36,93 +31,120 @@ private fun RemoteViews.barra(id: Int, c: Contador, hoje: LocalDate) {
     if (Build.VERSION.SDK_INT >= 31) setColorStateList(id, "setProgressTintList", ColorStateList.valueOf(corArgb(c)))
 }
 
-/** Widget do contador em destaque: quadrado (2×2) e, se esticado na largura, a versão grande (4×2). */
+/**
+ * Liga o Chronometer do Android: ele mesmo redesenha os segundos na tela inicial, sem o app rodar.
+ * Mostra o que sobra do dia (H:MM:SS); os dias inteiros ficam no texto ao lado.
+ */
+private fun RemoteViews.relogio(id: Int, r: RelogioWidget?, cor: Int) {
+    if (r == null) { setViewVisibility(id, View.GONE); return }
+    setViewVisibility(id, View.VISIBLE)
+    val agora = SystemClock.elapsedRealtime()
+    val base = if (r.regressivo) agora + r.resto * 1000 else agora - r.resto * 1000
+    setChronometer(id, base, null, true)
+    setChronometerCountDown(id, r.regressivo)
+    setTextColor(id, cor)
+}
+
+/** Widget do contador em destaque: quadrado (2×2) e, esticado na largura, a versão grande (4×2). */
 class ContadorWidget : AppWidgetProvider() {
     override fun onUpdate(ctx: Context, gerente: AppWidgetManager, ids: IntArray) = atualizarTodos(ctx, Armazem(ctx).ler())
 
     companion object {
-        /** Atualiza os três tipos de widget. Chamado ao salvar, no aviso das 9h e pelo sistema a cada 30 min. */
+        /** Redesenha os três widgets e agenda o próximo redesenho (virada do dia ou fim do relógio). */
         fun atualizarTodos(ctx: Context, estado: Estado) {
             val g = AppWidgetManager.getInstance(ctx)
-            val hoje = LocalDate.now()
+            val agora = LocalDateTime.now()
+            val hoje = agora.toLocalDate()
             val c = estado.contadores.find { it.id == estado.destaque } ?: estado.contadores.firstOrNull()
 
-            g.getAppWidgetIds(ComponentName(ctx, ContadorWidget::class.java)).takeIf { it.isNotEmpty() }?.let { ids ->
-                val pequeno = pequeno(ctx, c, hoje)
-                val v = if (Build.VERSION.SDK_INT >= 31) RemoteViews(mapOf(SizeF(100f, 100f) to pequeno, SizeF(250f, 110f) to grande(ctx, c, estado, hoje))) else pequeno
-                g.updateAppWidget(ids, v)
+            val destaque = g.getAppWidgetIds(ComponentName(ctx, ContadorWidget::class.java))
+            val giro = g.getAppWidgetIds(ComponentName(ctx, ListaWidget::class.java))
+            val faixa = g.getAppWidgetIds(ComponentName(ctx, FaixaWidget::class.java))
+
+            if (destaque.isNotEmpty()) {
+                val p = pequeno(ctx, c, agora)
+                g.updateAppWidget(destaque, if (Build.VERSION.SDK_INT >= 31) RemoteViews(mapOf(SizeF(100f, 100f) to p, SizeF(250f, 110f) to grande(ctx, c, agora))) else p)
             }
-            g.getAppWidgetIds(ComponentName(ctx, ListaWidget::class.java)).takeIf { it.isNotEmpty() }?.let { ids ->
-                g.updateAppWidget(ids, lista(ctx, estado, hoje))
-            }
-            g.getAppWidgetIds(ComponentName(ctx, FaixaWidget::class.java)).takeIf { it.isNotEmpty() }?.let { ids ->
-                g.updateAppWidget(ids, faixa(ctx, c, hoje))
-            }
+            if (giro.isNotEmpty()) g.updateAppWidget(giro, lista(ctx, estado, hoje))
+            if (faixa.isNotEmpty()) g.updateAppWidget(faixa, faixa(ctx, c, agora))
+
+            if (destaque.isNotEmpty() || giro.isNotEmpty() || faixa.isNotEmpty()) agendarTique(ctx, proximoTique(c, agora))
         }
 
-        private fun pequeno(ctx: Context, c: Contador?, hoje: LocalDate) = RemoteViews(ctx.packageName, R.layout.widget_pequeno).apply {
+        private fun agendarTique(ctx: Context, quando: LocalDateTime) {
+            val am = ctx.getSystemService(AlarmManager::class.java)
+            val pi = PendingIntent.getBroadcast(
+                ctx, 7, Intent(ctx, AvisoReceiver::class.java).setAction(ACAO_TIQUE),
+                PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+            )
+            val ms = quando.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli() + 500
+            if (Build.VERSION.SDK_INT < 31 || am.canScheduleExactAlarms()) am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, ms, pi)
+            else am.setWindow(AlarmManager.RTC_WAKEUP, ms, 60_000, pi)
+        }
+
+        private fun pequeno(ctx: Context, c: Contador?, agora: LocalDateTime) = RemoteViews(ctx.packageName, R.layout.widget_pequeno).apply {
             setOnClickPendingIntent(R.id.wRaiz, abrirApp(ctx))
             if (c == null) {
                 setTextViewText(R.id.wNome, "Contador"); setTextViewText(R.id.wNumero, "+"); setTextViewText(R.id.wRotulo, "crie um contador")
-                setViewVisibility(R.id.wBarra, View.GONE); return@apply
+                setViewVisibility(R.id.wBarra, View.GONE); setViewVisibility(R.id.wRelogio, View.GONE); return@apply
             }
-            val d = diasAte(c.data, hoje)
+            val r = relogioWidget(c, agora)
             setTextViewText(R.id.wNome, c.nome)
-            setTextViewText(R.id.wNumero, numeroWidget(d))
-            setTextViewText(R.id.wRotulo, rotuloDias(d))
+            setTextViewText(R.id.wNumero, if (r == null) "Hoje" else numero(r.dias))
+            setTextViewText(R.id.wRotulo, when { r == null -> "é agora!"; r.dias == 1L -> "dia"; else -> "dias" })
             setInt(R.id.wPonto, "setColorFilter", corArgb(c))
-            barra(R.id.wBarra, c, hoje)
+            relogio(R.id.wRelogio, r, corArgb(c))
+            barra(R.id.wBarra, c, agora.toLocalDate())
         }
 
-        private fun grande(ctx: Context, c: Contador?, estado: Estado, hoje: LocalDate) = RemoteViews(ctx.packageName, R.layout.widget_grande).apply {
+        private fun grande(ctx: Context, c: Contador?, agora: LocalDateTime) = RemoteViews(ctx.packageName, R.layout.widget_grande).apply {
             setOnClickPendingIntent(R.id.wRaiz, abrirApp(ctx))
             if (c == null) {
                 setTextViewText(R.id.wNome, "Contador"); setTextViewText(R.id.wData, "Toque para criar um contador")
-                setTextViewText(R.id.wNumero, "+"); setTextViewText(R.id.wRotulo, ""); setViewVisibility(R.id.wBarra, View.GONE)
-                setTextViewText(R.id.wProximo, ""); return@apply
+                setTextViewText(R.id.wNumero, "+"); setViewVisibility(R.id.wBlocoRelogio, View.GONE)
+                setViewVisibility(R.id.wBarra, View.GONE); setTextViewText(R.id.wPct, ""); setViewVisibility(R.id.wChip, View.GONE); return@apply
             }
-            val d = diasAte(c.data, hoje)
+            val r = relogioWidget(c, agora)
+            val hoje = agora.toLocalDate()
             setTextViewText(R.id.wNome, c.nome)
             setTextViewText(R.id.wData, dataTexto(c))
-            setTextViewText(R.id.wNumero, numeroWidget(d))
-            setTextViewText(R.id.wRotulo, rotuloDias(d))
-            setInt(R.id.wPonto, "setColorFilter", corArgb(c))
+            setTextViewText(R.id.wChip, if (r?.regressivo == false) "● DESDE" else "● AO VIVO")
+            setTextColor(R.id.wChip, corArgb(c))
+            setTextViewText(R.id.wNumero, if (r == null) "Hoje" else numero(r.dias))
+            setTextViewText(R.id.wRotulo, if (r?.dias == 1L) "DIA" else "DIAS")
+            setViewVisibility(R.id.wBlocoRelogio, if (r == null) View.GONE else View.VISIBLE)
+            relogio(R.id.wRelogio, r, corArgb(c))
             barra(R.id.wBarra, c, hoje)
-            val p = progresso(c, hoje)?.takeIf { d > 0 }
-            val prox = ordenar(estado.contadores, hoje).firstOrNull { it.id != c.id && diasAte(it.data, hoje) >= 0 }
-            setTextViewText(R.id.wProximo, listOfNotNull(
-                p?.let { "${(it * 100).toInt()}% do caminho" },
-                prox?.let { "depois: ${it.nome} em ${numero(diasAte(it.data, hoje))}d" },
-            ).joinToString("  ·  "))
+            setTextViewText(R.id.wPct, progresso(c, hoje)?.takeIf { diasAte(c.data, hoje) > 0 }?.let { "${(it * 100).toInt()}%" } ?: "")
         }
 
+        /** Próximos eventos se revezando sozinhos (ViewFlipper com animação de entrada e saída). */
         private fun lista(ctx: Context, estado: Estado, hoje: LocalDate) = RemoteViews(ctx.packageName, R.layout.widget_lista).apply {
             setOnClickPendingIntent(R.id.wRaiz, abrirApp(ctx))
-            val futuros = ordenar(estado.contadores, hoje).filter { diasAte(it.data, hoje) >= 0 }.take(3)
-            val linhas = listOf(Triple(R.id.wL1, R.id.wN1, R.id.wD1), Triple(R.id.wL2, R.id.wN2, R.id.wD2), Triple(R.id.wL3, R.id.wN3, R.id.wD3))
-            linhas.forEachIndexed { i, (linha, nome, dias) ->
-                val c = futuros.getOrNull(i)
-                if (c == null) { setViewVisibility(linha, View.GONE); return@forEachIndexed }
-                setViewVisibility(linha, View.VISIBLE)
-                setTextViewText(nome, c.nome)
-                setTextViewText(dias, numeroWidget(diasAte(c.data, hoje)))
-                setTextColor(dias, corArgb(c))
-            }
+            val futuros = ordenar(estado.contadores, hoje).filter { diasAte(it.data, hoje) >= 0 }.take(5)
             setViewVisibility(R.id.wVazio, if (futuros.isEmpty()) View.VISIBLE else View.GONE)
+            setViewVisibility(R.id.wGiro, if (futuros.isEmpty()) View.GONE else View.VISIBLE)
+            removeAllViews(R.id.wGiro)
+            futuros.forEachIndexed { i, c ->
+                val d = diasAte(c.data, hoje)
+                addView(R.id.wGiro, RemoteViews(ctx.packageName, R.layout.widget_giro_item).apply {
+                    setTextViewText(R.id.gNome, c.nome)
+                    setTextViewText(R.id.gDias, if (d == 0L) "Hoje" else numero(d))
+                    setTextColor(R.id.gDias, corArgb(c))
+                    setTextViewText(R.id.gRotulo, when { d == 0L -> ""; d == 1L -> "dia"; else -> "dias" })
+                    setTextViewText(R.id.gPos, "${i + 1} de ${futuros.size}")
+                })
+            }
         }
 
-        private fun faixa(ctx: Context, c: Contador?, hoje: LocalDate) = RemoteViews(ctx.packageName, R.layout.widget_faixa).apply {
+        private fun faixa(ctx: Context, c: Contador?, agora: LocalDateTime) = RemoteViews(ctx.packageName, R.layout.widget_faixa).apply {
             setOnClickPendingIntent(R.id.wRaiz, abrirApp(ctx))
-            if (c == null) { setTextViewText(R.id.wTexto, "Crie um contador"); setTextViewText(R.id.wExtra, ""); return@apply }
-            val d = diasAte(c.data, hoje)
-            val n = numero(abs(d))
-            setTextViewText(R.id.wTexto, when {
-                d > 0 -> "${c.nome} em $n ${if (abs(d) == 1L) "dia" else "dias"}"
-                d == 0L -> "Hoje: ${c.nome}"
-                else -> "$n ${if (abs(d) == 1L) "dia" else "dias"} desde ${c.nome}"
-            })
-            setTextViewText(R.id.wExtra, progresso(c, hoje)?.takeIf { d > 0 }?.let { "${(it * 100).toInt()}%" } ?: "")
+            if (c == null) { setTextViewText(R.id.wTexto, "Crie um contador"); setTextViewText(R.id.wExtra, ""); setViewVisibility(R.id.wRelogio, View.GONE); return@apply }
+            val r = relogioWidget(c, agora)
+            setTextViewText(R.id.wTexto, c.nome)
+            setTextViewText(R.id.wExtra, if (r == null) "Hoje!" else "${numero(r.dias)}d")
             setInt(R.id.wPonto, "setColorFilter", corArgb(c))
+            relogio(R.id.wRelogio, r, corArgb(c))
         }
     }
 }

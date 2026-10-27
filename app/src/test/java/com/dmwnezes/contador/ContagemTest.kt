@@ -77,6 +77,22 @@ class ContagemTest {
         assertEquals("evento", e.contadores[1].icone)
     }
 
+    @Test fun relogioDosWidgets() {
+        val agora = LocalDateTime.of(2026, 10, 27, 17, 30, 15)
+        assertEquals(RelogioWidget(22, 6 * 3600 + 29 * 60 + 45, true), relogioWidget(gta, agora))
+        val passado = Contador("p", "x", LocalDate.of(2026, 10, 20))
+        assertEquals(RelogioWidget(7, 17 * 3600 + 30 * 60 + 15, false), relogioWidget(passado, agora))
+        assertNull(relogioWidget(gta, gta.data.atStartOfDay()))
+    }
+
+    @Test fun proximoTiqueDosWidgets() {
+        val agora = LocalDateTime.of(2026, 10, 27, 17, 30, 15)
+        assertEquals(LocalDateTime.of(2026, 10, 28, 0, 0), proximoTique(gta, agora))
+        val comHora = gta.copy(hora = LocalTime.of(21, 0))
+        assertEquals(LocalDateTime.of(2026, 10, 27, 21, 0), proximoTique(comHora, agora))
+        assertEquals(LocalDateTime.of(2026, 10, 28, 0, 0), proximoTique(null, agora))
+    }
+
     @Test fun versaoDaTag() {
         assertEquals(12, codigoDaTag("v1.0.12"))
         assertEquals(3, codigoDaTag("v1.0.3"))

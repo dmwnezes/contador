@@ -83,7 +83,13 @@ object Avisos {
 
 class AvisoReceiver : BroadcastReceiver() {
     override fun onReceive(ctx: Context, intent: Intent) {
-        // Depois de reiniciar o celular o alarme some; reagenda.
-        if (intent.action == Intent.ACTION_BOOT_COMPLETED) Avisos.agendar(ctx) else Avisos.verificar(ctx)
+        when (intent.action) {
+            // Depois de reiniciar o celular os alarmes somem; reagenda.
+            Intent.ACTION_BOOT_COMPLETED -> { Avisos.agendar(ctx); ContadorWidget.atualizarTodos(ctx, Armazem(ctx).ler()) }
+            // Virada do dia ou do relógio dos widgets; mudança de hora/fuso; app atualizado.
+            ACAO_TIQUE, Intent.ACTION_TIME_CHANGED, Intent.ACTION_TIMEZONE_CHANGED, Intent.ACTION_MY_PACKAGE_REPLACED ->
+                ContadorWidget.atualizarTodos(ctx, Armazem(ctx).ler())
+            else -> Avisos.verificar(ctx)
+        }
     }
 }

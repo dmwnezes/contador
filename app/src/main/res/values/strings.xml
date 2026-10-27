@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="widget_destaque">Contador em destaque. Estique para ver a versão grande.</string>
-    <string name="widget_lista">Os próximos 3 eventos.</string>
+    <string name="widget_lista">Os próximos eventos se revezando.</string>
     <string name="widget_faixa">Uma linha com o contador em destaque.</string>
 </resources>
