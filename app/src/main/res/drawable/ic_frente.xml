@@ -1,0 +1,9 @@
+<!-- Sol de fim de tarde com faixas: lembra contagem até o "dia". -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp" android:viewportWidth="108" android:viewportHeight="108">
+    <path android:fillColor="#FFB34D" android:pathData="M30,62 A24,24 0 0,1 78,62z" />
+    <path android:fillColor="#2A1440" android:pathData="M28,49h52v3h-52z" />
+    <path android:fillColor="#2A1440" android:pathData="M28,56h52v3h-52z" />
+    <path android:fillColor="#FF5D8F" android:pathData="M30,66h48v4h-48z" />
+    <path android:fillColor="#FF5D8F" android:pathData="M36,74h36v3h-36z" />
+</vector>
