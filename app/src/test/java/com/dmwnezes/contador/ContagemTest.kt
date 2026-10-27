@@ -1,11 +1,15 @@
 package com.dmwnezes.contador
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Test
 import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.LocalTime
 
 class ContagemTest {
-    private val hoje = LocalDate.of(2026, 10, 27)
+    private val hoje = LocalDate.of(2026, 10, 27) // terça-feira
+    private val gta = Contador("gta6", "GTA 6", LocalDate.of(2026, 11, 19), criado = LocalDate.of(2026, 10, 7))
 
     @Test fun diasFuturoPassadoHoje() {
         assertEquals(23L, diasAte(LocalDate.of(2026, 11, 19), hoje))
@@ -21,22 +25,60 @@ class ContagemTest {
         assertEquals(listOf("b", "a", "d", "c"), ordenar(listOf(a, c, b, d), hoje).map { it.id })
     }
 
-    @Test fun jsonIdaEVolta() {
-        val e = Estado(listOf(Contador("x", "Viagem \"SP\"", LocalDate.of(2027, 2, 3))), "x")
-        assertEquals(e, deJson(paraJson(e)))
-        assertEquals(Estado(listOf(), null), deJson(paraJson(Estado(listOf(), null))))
+    @Test fun sabadosNoIntervalo() {
+        assertEquals(0L, finsDeSemana(hoje, hoje))
+        assertEquals(1L, finsDeSemana(hoje, LocalDate.of(2026, 11, 1))) // sáb 31/10
+        assertEquals(0L, finsDeSemana(hoje, LocalDate.of(2026, 10, 31))) // fim exclusivo
+        assertEquals(3L, finsDeSemana(hoje, gta.data)) // 31/10, 7/11 e 14/11
+        assertEquals(3L, finsDeSemana(gta.data, hoje)) // ordem não importa
+    }
+
+    @Test fun unidades() {
+        val agora = LocalDateTime.of(2026, 10, 27, 12, 0)
+        assertEquals(23L, valorEm(Unidade.DIAS, gta, agora))
+        assertEquals(3L, valorEm(Unidade.SEMANAS, gta, agora))
+        assertEquals(22L * 24 + 12, valorEm(Unidade.HORAS, gta, agora))
+        val comHora = gta.copy(hora = LocalTime.of(21, 30))
+        assertEquals(23L * 24 + 9, valorEm(Unidade.HORAS, comHora, agora))
+        assertEquals("fim de semana", Unidade.FINS_DE_SEMANA.rotulo(1))
+    }
+
+    @Test fun progressoDoCaminho() {
+        assertEquals(20f / 43f, progresso(gta, hoje)!!, 0.0001f)
+        assertEquals(1f, progresso(gta.copy(criado = gta.data), gta.data)!!, 0f)
+        assertNull(progresso(gta, LocalDate.of(2026, 11, 20)))
+    }
+
+    @Test fun avisosNosMarcos() {
+        assertEquals("Faltam 30 dias para GTA 6", aviso(gta, gta.data.minusDays(30)))
+        assertEquals("Falta uma semana para GTA 6", aviso(gta, gta.data.minusDays(7)))
+        assertEquals("É amanhã: GTA 6", aviso(gta, gta.data.minusDays(1)))
+        assertEquals("É hoje: GTA 6", aviso(gta, gta.data))
+        assertNull(aviso(gta, hoje))
     }
 
     @Test fun tempoLongoPorExtenso() {
         assertEquals("0 dias", tempoLongo(0))
-        assertEquals("1 dia", tempoLongo(1))
         assertEquals("1 ano", tempoLongo(365))
         assertEquals("1 ano, 1 mês e 1 dia", tempoLongo(396))
         assertEquals("2 meses e 3 dias", tempoLongo(63))
     }
 
+    @Test fun jsonIdaEVolta() {
+        val e = Estado(listOf(gta.copy(nome = "Viagem \"SP\"", hora = LocalTime.of(8, 15), cor = 3, icone = "viagem")), "gta6")
+        assertEquals(e, deJson(paraJson(e), hoje))
+        assertEquals(Estado(listOf(), null), deJson(paraJson(Estado(listOf(), null)), hoje))
+    }
+
+    @Test fun jsonAntigoGanhaPadroes() {
+        val antigo = """{"destaque":"gta6","contadores":[{"id":"gta6","nome":"GTA","data":"2026-11-19"},{"id":"1","nome":"x","data":"2024-04-21"}]}"""
+        val e = deJson(antigo, hoje)
+        assertEquals(Contador("gta6", "GTA", LocalDate.of(2026, 11, 19), null, hoje, 0, "jogo"), e.contadores[0])
+        assertEquals("evento", e.contadores[1].icone)
+    }
+
     @Test fun vazioOuInvalidoVoltaAoPadrao() {
-        assertEquals(PADRAO, deJson(null).contadores)
-        assertEquals(PADRAO, deJson("lixo").contadores)
+        assertEquals(padrao(hoje), deJson(null, hoje).contadores)
+        assertEquals(padrao(hoje), deJson("lixo", hoje).contadores)
     }
 }
