@@ -7,7 +7,7 @@
         <TextView android:id="@+id/wNome" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:layout_marginStart="8dp"
             android:ellipsize="end" android:maxLines="1" android:text="Lançamento do GTA 6" android:textColor="#CCFFFFFF" android:textSize="12sp" android:textStyle="bold" />
     </LinearLayout>
-    <View android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" />
+    <FrameLayout android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" />
     <TextView android:id="@+id/wNumero" android:layout_width="wrap_content" android:layout_height="wrap_content" android:includeFontPadding="false"
         android:maxLines="1" android:text="23" android:textColor="#FFFFFFFF" android:textSize="52sp" android:textStyle="bold" android:letterSpacing="-0.04" />
     <TextView android:id="@+id/wRotulo" android:layout_width="match_parent" android:layout_height="wrap_content" android:maxLines="1"

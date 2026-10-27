@@ -74,8 +74,11 @@ class MainActivity : ComponentActivity() {
             statusBarStyle = SystemBarStyle.auto(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT),
             navigationBarStyle = SystemBarStyle.auto(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT),
         )
-        Avisos.agendar(this)
-        Atualizador.agendar(this)
+        val erro = arquivoDeErro(this)
+        if (erro.exists()) { mostrarErro(erro); return }
+        // Falhas ao agendar não podem impedir o app de abrir.
+        runCatching { Avisos.agendar(this) }
+        runCatching { Atualizador.agendar(this) }
         if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
             pedirAvisos.launch(Manifest.permission.POST_NOTIFICATIONS)
         }
@@ -83,6 +86,47 @@ class MainActivity : ComponentActivity() {
         val prefs = Preferencias(this)
         setContent { App(armazem, prefs) }
         compartilharDoAviso(intent)
+    }
+
+    /** Tela simples (sem Compose) com o erro que fechou o app na última vez. */
+    private fun mostrarErro(arquivo: java.io.File) {
+        val texto = arquivo.readText()
+        val d = resources.displayMetrics.density
+        val pad = (20 * d).toInt()
+        val coluna = android.widget.LinearLayout(this).apply {
+            orientation = android.widget.LinearLayout.VERTICAL
+            setPadding(pad, pad * 3, pad, pad * 2)
+            setBackgroundColor(0xFF0B0912.toInt())
+        }
+        coluna.addView(android.widget.TextView(this).apply {
+            text = "O Contador fechou sozinho"
+            textSize = 22f; setTextColor(0xFFFFFFFF.toInt()); setTypeface(typeface, android.graphics.Typeface.BOLD)
+        })
+        coluna.addView(android.widget.TextView(this).apply {
+            text = "Copie o erro abaixo e mande no chat para corrigir."
+            textSize = 14f; setTextColor(0xB3FFFFFF.toInt()); setPadding(0, pad / 2, 0, pad / 2)
+        })
+        val botoes = android.widget.LinearLayout(this)
+        botoes.addView(android.widget.Button(this).apply {
+            text = "Copiar erro"
+            setOnClickListener {
+                getSystemService(android.content.ClipboardManager::class.java)
+                    .setPrimaryClip(android.content.ClipData.newPlainText("erro", texto))
+                android.widget.Toast.makeText(this@MainActivity, "Erro copiado", android.widget.Toast.LENGTH_SHORT).show()
+            }
+        })
+        botoes.addView(android.widget.Button(this).apply {
+            text = "Abrir o app"
+            setOnClickListener { arquivo.delete(); recreate() }
+        })
+        coluna.addView(botoes)
+        coluna.addView(android.widget.ScrollView(this).apply {
+            addView(android.widget.TextView(this@MainActivity).apply {
+                text = texto; textSize = 11f; setTextColor(0xFFFFB34D.toInt()); setTextIsSelectable(true)
+                typeface = android.graphics.Typeface.MONOSPACE; setPadding(0, pad / 2, 0, 0)
+            })
+        })
+        setContentView(coluna)
     }
 
     override fun onNewIntent(intent: Intent) {
