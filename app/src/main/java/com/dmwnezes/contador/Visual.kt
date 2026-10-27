@@ -4,44 +4,71 @@ import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.*
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Rect
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.PathOperation
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.drawscope.clipRect
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import kotlin.math.PI
-import kotlin.math.sin
-import kotlin.random.Random
 
-val Noite = Color(0xFF160C26)
-val Crepusculo = Color(0xFF2A1440)
-val Cartao = Color(0xFF22123A)
-val CartaoClaro = Color(0xFF2C1A48)
-val Borda = Color(0xFF3A2559)
-val Suave = Color(0xFFB9A6CF)
 val Rosa = Color(0xFFFF5D8F)
+val Violeta = Color(0xFF6C5CFF)
+val Ciano = Color(0xFF2EC5FF)
 val Ambar = Color(0xFFFFB34D)
-val Turquesa = Color(0xFF3EE0CF)
-val Madrugada = Color(0xFF0B1030)
+val Verde = Color(0xFF3FD18A)
+val Anil = Color(0xFF2E3AFF)
+
+/** Cores do tema atual. Vidro = camada translúcida sobre o fundo com bolhas. */
+data class Paleta(
+    val escuro: Boolean,
+    val fundo: Color,
+    val cartao: Color, // superfície sólida (diálogos, menus)
+    val texto: Color,
+    val suave: Color,
+    val vidro: Color,
+    val vidroForte: Color,
+    val borda: Color,
+    val trilho: Color,
+    val bolhas: List<Color>,
+    val alfaBolhas: Float,
+)
+
+fun paleta(escuro: Boolean, acc: Color, bolhas: Boolean, p: Periodo?): Paleta {
+    val outras = when (p) {
+        Periodo.MANHA -> listOf(Ambar, Ciano)
+        Periodo.TARDE -> listOf(Ciano, Verde)
+        Periodo.NOITE -> listOf(Violeta, Anil)
+        null -> listOf(Violeta, Ciano)
+    }
+    val alfa = if (!bolhas) 0f else if (escuro) 0.5f else 0.35f
+    return if (escuro) Paleta(
+        escuro = true, fundo = Color(0xFF0B0912), cartao = Color(0xFF1A1724), texto = Color.White,
+        suave = Color.White.copy(alpha = 0.62f), vidro = Color.White.copy(alpha = 0.07f), vidroForte = Color.White.copy(alpha = 0.11f),
+        borda = Color.White.copy(alpha = 0.13f), trilho = Color.White.copy(alpha = 0.12f), bolhas = listOf(acc) + outras, alfaBolhas = alfa,
+    ) else Paleta(
+        escuro = false, fundo = Color(0xFFEEF0F7), cartao = Color(0xFFFAFAFD), texto = Color(0xFF16142A),
+        suave = Color(0xFF5A5878), vidro = Color.White.copy(alpha = 0.55f), vidroForte = Color.White.copy(alpha = 0.75f),
+        borda = Color.White.copy(alpha = 0.9f), trilho = Color(0x1416142A), bolhas = listOf(acc) + outras, alfaBolhas = alfa,
+    )
+}
+
+val LocalPaleta = staticCompositionLocalOf { paleta(true, Rosa, true, null) }
 
 enum class Fase { FUTURO, HOJE, PASSADO }
 
@@ -62,73 +89,39 @@ fun icone(chave: String): ImageVector = when (chave) {
     else -> Icons.Rounded.Event
 }
 
-private data class Estrela(val x: Float, val y: Float, val r: Float, val fase: Float)
-
-private val estrelas = Random(7).let { rnd -> List(36) { Estrela(rnd.nextFloat(), rnd.nextFloat() * 0.75f, 0.8f + rnd.nextFloat() * 1.4f, rnd.nextFloat() * 2f * PI.toFloat()) } }
-
-/**
- * Céu animado do destaque. O sol fica no canto inferior direito, longe do texto.
- * Futuro: sol se pondo com faixas subindo. Hoje: sol alto. Passado: noite com lua e estrelas.
- */
+/** Fundo com três manchas de cor desfocadas que flutuam devagar. */
 @Composable
-fun Ceu(f: Fase, modifier: Modifier = Modifier) {
-    val spec = tween<Color>(900)
-    val topo by animateColorAsState(if (f == Fase.PASSADO) Madrugada else Crepusculo, spec, label = "topo")
-    val base by animateColorAsState(when (f) { Fase.PASSADO -> Color(0xFF1B2A5A); Fase.HOJE -> Color(0xFFA3335F); else -> Color(0xFF5E1D55) }, spec, label = "base")
-    // 1 = sol alto, 0 = metade abaixo do horizonte, -1 = escondido.
-    val altura by animateFloatAsState(when (f) { Fase.PASSADO -> -1.2f; Fase.HOJE -> 1f; else -> 0f }, tween(1200, easing = FastOutSlowInEasing), label = "sol")
-    val noite by animateFloatAsState(if (f == Fase.PASSADO) 1f else 0f, tween(900), label = "noite")
-
-    val inf = rememberInfiniteTransition(label = "ceu")
-    val t by inf.animateFloat(0f, 1f, infiniteRepeatable(tween(9000, easing = LinearEasing)), label = "t")
-    val pulso by inf.animateFloat(0.97f, 1.03f, infiniteRepeatable(tween(2600, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "pulso")
-
-    Canvas(modifier.clipToBounds()) {
-        drawRect(Brush.verticalGradient(listOf(topo, base)))
-
-        estrelas.forEach { e ->
-            val a = (0.3f + 0.7f * (0.5f + 0.5f * sin(t * 4f * PI.toFloat() + e.fase))) * (0.25f + 0.75f * noite)
-            drawCircle(Color.White.copy(alpha = a), e.r.dp.toPx() / 2f, Offset(e.x * size.width, e.y * size.height))
+fun FundoBolhas(modifier: Modifier = Modifier) {
+    val p = LocalPaleta.current
+    val inf = rememberInfiniteTransition(label = "bolhas")
+    val a by inf.animateFloat(0f, 1f, infiniteRepeatable(tween(14000, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "a")
+    val b by inf.animateFloat(0f, 1f, infiniteRepeatable(tween(18000, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "b")
+    val c0 by animateColorAsState(p.bolhas[0], tween(800), label = "c0")
+    val c1 by animateColorAsState(p.bolhas[1], tween(800), label = "c1")
+    val c2 by animateColorAsState(p.bolhas[2], tween(800), label = "c2")
+    val alfa by animateFloatAsState(p.alfaBolhas, tween(600), label = "alfa")
+    Canvas(modifier.background(p.fundo)) {
+        if (alfa <= 0.01f) return@Canvas
+        fun bolha(cor: Color, x: Float, y: Float, r: Float) {
+            val centro = Offset(x * size.width, y * size.height)
+            drawCircle(Brush.radialGradient(listOf(cor.copy(alpha = alfa), Color.Transparent), centro, r * size.width), r * size.width, centro)
         }
-
-        // Lua crescente (só à noite).
-        if (noite > 0.01f) {
-            val r = size.width * 0.07f
-            val c = Offset(size.width * 0.8f, size.height * 0.52f)
-            val sombra = c + Offset(r * 0.45f, -r * 0.2f)
-            val lua = Path.combine(
-                PathOperation.Difference,
-                Path().apply { addOval(Rect(c, r)) },
-                Path().apply { addOval(Rect(sombra, r)) },
-            )
-            drawPath(lua, Color(0xFFFFF4D6).copy(alpha = noite))
-        }
-
-        val raio = size.width * 0.2f * pulso
-        // Futuro: metade abaixo do horizonte (base do céu). Hoje: sobe mais.
-        val centro = Offset(size.width * 0.82f, size.height + raio * 0.1f - altura * raio * 0.6f)
-        drawCircle(Brush.radialGradient(listOf(Ambar.copy(alpha = 0.35f * (1f - noite)), Color.Transparent), centro, raio * 2.2f), raio * 2.2f, centro)
-        val faixa = 7.dp.toPx()
-        val passo = faixa + 4.dp.toPx()
-        val desloc = t * passo * 6f % passo
-        var y = centro.y - raio - passo + desloc
-        while (y < centro.y + raio) {
-            clipRect(top = y, bottom = y + faixa) {
-                drawCircle(Brush.verticalGradient(listOf(Ambar, Rosa), centro.y - raio, centro.y + raio * 0.4f), raio, centro, alpha = 1f - noite)
-            }
-            y += passo
-        }
+        bolha(c0, 0.1f + a * 0.12f, 0.12f + a * 0.08f, 0.85f)
+        bolha(c1, 0.95f - b * 0.15f, 0.48f - b * 0.06f, 0.8f)
+        bolha(c2, 0.3f + b * 0.1f, 0.98f - a * 0.05f, 0.7f)
     }
 }
 
-/** Bloco do relógio: o número desliza ao mudar. Ocupa a largura que o Row der. */
+/** Camada de vidro: fundo translúcido + borda clara. */
+fun Modifier.vidro(p: Paleta, forma: Shape = RoundedCornerShape(26.dp), forte: Boolean = false) =
+    this.clip(forma).background(if (forte) p.vidroForte else p.vidro).border(1.dp, p.borda, forma)
+
+/** Bloco do relógio: o número desliza ao mudar. */
 @Composable
 fun Bloco(v: Long, rotulo: String, modifier: Modifier = Modifier) {
+    val p = LocalPaleta.current
     Column(
-        modifier
-            .clip(RoundedCornerShape(14.dp))
-            .background(Color.White.copy(alpha = 0.06f))
-            .padding(vertical = 10.dp),
+        modifier.vidro(p, RoundedCornerShape(16.dp)).padding(vertical = 10.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         AnimatedContent(
@@ -139,28 +132,29 @@ fun Bloco(v: Long, rotulo: String, modifier: Modifier = Modifier) {
             },
             label = rotulo,
         ) { n ->
-            Text("%02d".format(n), color = Color.White, fontWeight = FontWeight.ExtraBold, fontSize = 22.sp, textAlign = TextAlign.Center)
+            Text("%02d".format(n), color = p.texto, fontWeight = FontWeight.ExtraBold, fontSize = 22.sp, textAlign = TextAlign.Center)
         }
-        Text(rotulo.uppercase(), color = Suave, fontSize = 10.sp, letterSpacing = 1.sp, maxLines = 1)
+        Text(rotulo.uppercase(), color = p.suave, fontSize = 10.sp, letterSpacing = 1.sp, maxLines = 1)
     }
 }
 
-/** Barra de progresso arredondada com preenchimento animado. */
+/** Barra de progresso arredondada com preenchimento animado e brilho no escuro. */
 @Composable
-fun Barra(p: Float, cor: Color, altura: Dp = 6.dp, modifier: Modifier = Modifier) {
-    val v by animateFloatAsState(p, tween(900, easing = FastOutSlowInEasing), label = "barra")
-    Box(modifier.fillMaxWidth().height(altura).clip(CircleShape).background(Color.White.copy(alpha = 0.1f))) {
-        Box(Modifier.fillMaxWidth(v).fillMaxHeight().clip(CircleShape).background(Brush.horizontalGradient(listOf(cor.copy(alpha = 0.7f), cor))))
+fun Barra(prog: Float, cor: Color, altura: Dp = 6.dp, modifier: Modifier = Modifier) {
+    val p = LocalPaleta.current
+    val v by animateFloatAsState(prog, tween(900, easing = FastOutSlowInEasing), label = "barra")
+    Box(modifier.fillMaxWidth().height(altura).clip(CircleShape).background(p.trilho)) {
+        Box(Modifier.fillMaxWidth(v).fillMaxHeight().clip(CircleShape).background(cor))
     }
 }
 
-/** Ícone do contador dentro de um círculo na cor dele. */
+/** Ícone do contador num quadrado arredondado tingido com a cor dele. */
 @Composable
-fun Selo(c: Contador, tamanho: Dp = 36.dp) {
+fun Selo(c: Contador, tamanho: Dp = 44.dp, cor: Color = cor(c)) {
     Box(
-        Modifier.size(tamanho).clip(CircleShape).background(cor(c).copy(alpha = 0.2f)),
+        Modifier.size(tamanho).clip(RoundedCornerShape(tamanho * 0.32f)).background(cor.copy(alpha = 0.18f)),
         contentAlignment = Alignment.Center,
     ) {
-        androidx.compose.material3.Icon(icone(c.icone), null, tint = cor(c), modifier = Modifier.size(tamanho * 0.55f))
+        Icon(icone(c.icone), null, tint = cor, modifier = Modifier.size(tamanho * 0.5f))
     }
 }

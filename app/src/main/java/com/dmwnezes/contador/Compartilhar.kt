@@ -4,8 +4,8 @@ import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.Canvas
-import android.graphics.LinearGradient
 import android.graphics.Paint
+import android.graphics.RadialGradient
 import android.graphics.RectF
 import android.graphics.Shader
 import android.graphics.Typeface
@@ -47,36 +47,22 @@ private fun desenharCard(c: Contador, agora: LocalDateTime): Bitmap {
     val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
     val cv = Canvas(bmp)
     val d = diasAte(c.data, agora.toLocalDate())
-    val passado = d < 0
-    val acc = corArgb(c)
+        val acc = corArgb(c)
 
-    // Céu
-    val ceu = Paint().apply {
-        shader = LinearGradient(0f, 0f, 0f, h.toFloat(),
-            if (passado) intArrayOf(0xFF0B1030.toInt(), 0xFF1B2A5A.toInt()) else intArrayOf(0xFF2A1440.toInt(), 0xFF3B1550.toInt(), 0xFF6A2058.toInt()),
-            null, Shader.TileMode.CLAMP)
-    }
-    cv.drawRect(0f, 0f, w.toFloat(), h.toFloat(), ceu)
-
-    // Sol com faixas (futuro/hoje) ou lua (passado), no canto inferior direito
-    if (passado) {
-        val p = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFFFFF4D6.toInt() }
-        cv.drawCircle(860f, 230f, 80f, p)
-        p.color = 0xFF0B1030.toInt()
-        cv.drawCircle(896f, 214f, 80f, p)
-    } else {
-        val r = 300f
-        val cx = 840f
-        val cy = h - 120f
-        val sol = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            shader = LinearGradient(0f, cy - r, 0f, cy + r * 0.4f, 0xFFFFB34D.toInt(), 0xFFFF5D8F.toInt(), Shader.TileMode.CLAMP)
+    // Fundo vidro escuro com bolhas de cor
+    cv.drawColor(0xFF0B0912.toInt())
+    fun bolha(cor: Int, x: Float, y: Float, r: Float) {
+        val tinta = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            shader = RadialGradient(x, y, r, intArrayOf((cor and 0x00FFFFFF) or 0x99000000.toInt(), cor and 0x00FFFFFF), null, Shader.TileMode.CLAMP)
         }
-        var y = cy - r
-        while (y < cy + r) {
-            cv.save(); cv.clipRect(0f, y, w.toFloat(), y + 26f); cv.drawCircle(cx, cy, r, sol); cv.restore()
-            y += 40f
-        }
+        cv.drawCircle(x, y, r, tinta)
     }
+    bolha(acc, 160f, 220f, 760f)
+    bolha(0xFF6C5CFF.toInt(), 1000f, 760f, 700f)
+    bolha(0xFF2EC5FF.toInt(), 360f, 1380f, 600f)
+    // Cartão de vidro
+    cv.drawRoundRect(RectF(50f, 70f, w - 50f, h - 170f), 64f, 64f, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0x1AFFFFFF })
+    cv.drawRoundRect(RectF(50f, 70f, w - 50f, h - 170f), 64f, 64f, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0x33FFFFFF; style = Paint.Style.STROKE; strokeWidth = 3f })
 
     val m = 90f
     // Selo de fase
@@ -102,7 +88,8 @@ private fun desenharCard(c: Contador, agora: LocalDateTime): Bitmap {
     val numP = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
         textSize = when { txt.length <= 3 -> 340f; txt.length <= 5 -> 260f; else -> 190f }
         typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-        shader = LinearGradient(0f, y - textSize, 0f, y, 0xFFFFFFFF.toInt(), acc, Shader.TileMode.CLAMP)
+        color = 0xFFFFFFFF.toInt()
+        setShadowLayer(40f, 0f, 0f, 0x55FFFFFF)
     }
     cv.drawText(txt, m - 10f, y, numP)
     if (d != 0L) {

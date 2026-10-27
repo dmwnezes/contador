@@ -16,6 +16,7 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.ZoneId
+import java.time.temporal.ChronoUnit
 
 /** Uma vez por dia, às 9h, avisa dos contadores que estão a 30, 7, 1 ou 0 dias. */
 object Avisos {
@@ -42,20 +43,41 @@ object Avisos {
 
         val nm = ctx.getSystemService(NotificationManager::class.java)
         nm.createNotificationChannel(NotificationChannel(CANAL, "Marcos da contagem", NotificationManager.IMPORTANCE_DEFAULT))
-        val abrir = PendingIntent.getActivity(ctx, 0, Intent(ctx, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE)
         val hoje = LocalDate.now()
         estado.contadores.forEach { c ->
-            val texto = aviso(c, hoje) ?: return@forEach
-            val n = NotificationCompat.Builder(ctx, CANAL)
-                .setSmallIcon(R.drawable.ic_notificacao)
-                .setColor(corArgb(c))
-                .setContentTitle(texto)
-                .setContentText(dataTexto(c))
-                .setContentIntent(abrir)
-                .setAutoCancel(true)
-                .build()
-            NotificationManagerCompat.from(ctx).notify(c.id.hashCode(), n)
+            val titulo = aviso(c, hoje) ?: return@forEach
+            NotificationManagerCompat.from(ctx).notify(c.id.hashCode(), montar(ctx, c, titulo, hoje))
         }
+    }
+
+    private fun montar(ctx: Context, c: Contador, titulo: String, hoje: LocalDate): android.app.Notification {
+        val req = c.id.hashCode()
+        val abrir = PendingIntent.getActivity(ctx, req, Intent(ctx, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+        val comp = PendingIntent.getActivity(
+            ctx, req + 1,
+            Intent(ctx, MainActivity::class.java).putExtra(EXTRA_COMPARTILHAR, c.id).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP),
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+        )
+        val dias = diasAte(c.data, hoje)
+        val texto = if (dias == 0L) {
+            val esperou = ChronoUnit.DAYS.between(c.criado, hoje)
+            if (esperou > 0) "Você esperou ${numero(esperou)} ${if (esperou == 1L) "dia" else "dias"} por isso." else dataTexto(c)
+        } else {
+            val p = progresso(c, hoje)
+            dataTexto(c) + (p?.let { " · ${(it * 100).toInt()}% do caminho" } ?: "")
+        }
+        return NotificationCompat.Builder(ctx, CANAL)
+            .setSmallIcon(R.drawable.ic_notificacao)
+            .setColor(corArgb(c))
+            .setContentTitle(titulo)
+            .setContentText(texto)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(texto))
+            .apply { progresso(c, hoje)?.takeIf { dias > 0 }?.let { setProgress(100, (it * 100).toInt(), false) } }
+            .setContentIntent(abrir)
+            .addAction(0, "Compartilhar", comp)
+            .addAction(0, "Abrir", abrir)
+            .setAutoCancel(true)
+            .build()
     }
 }
 

@@ -77,6 +77,20 @@ class ContagemTest {
         assertEquals("evento", e.contadores[1].icone)
     }
 
+    @Test fun versaoDaTag() {
+        assertEquals(12, codigoDaTag("v1.0.12"))
+        assertEquals(3, codigoDaTag("v1.0.3"))
+        assertNull(codigoDaTag("sem-numero"))
+    }
+
+    @Test fun periodosDoDia() {
+        assertEquals(Periodo.MANHA, periodo(5))
+        assertEquals(Periodo.MANHA, periodo(11))
+        assertEquals(Periodo.TARDE, periodo(12))
+        assertEquals(Periodo.NOITE, periodo(18))
+        assertEquals(Periodo.NOITE, periodo(2))
+    }
+
     @Test fun vazioOuInvalidoVoltaAoPadrao() {
         assertEquals(padrao(hoje), deJson(null, hoje).contadores)
         assertEquals(padrao(hoje), deJson("lixo", hoje).contadores)

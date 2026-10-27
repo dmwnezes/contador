@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/wRaiz" android:layout_width="match_parent" android:layout_height="match_parent"
+    android:background="@drawable/widget_pilula" android:gravity="center_vertical" android:orientation="horizontal"
+    android:paddingStart="18dp" android:paddingEnd="18dp">
+    <ImageView android:id="@+id/wPonto" android:layout_width="10dp" android:layout_height="10dp" android:src="@drawable/widget_ponto" />
+    <TextView android:id="@+id/wTexto" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:layout_marginStart="12dp"
+        android:ellipsize="end" android:maxLines="1" android:text="GTA 6 em 23 dias" android:textColor="#FFFFFFFF" android:textSize="14sp" android:textStyle="bold" />
+    <TextView android:id="@+id/wExtra" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginStart="8dp"
+        android:text="46%" android:textColor="#A6FFFFFF" android:textSize="12sp" />
+</LinearLayout>
