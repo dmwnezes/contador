@@ -27,6 +27,14 @@ class ContagemTest {
         assertEquals(Estado(listOf(), null), deJson(paraJson(Estado(listOf(), null))))
     }
 
+    @Test fun tempoLongoPorExtenso() {
+        assertEquals("0 dias", tempoLongo(0))
+        assertEquals("1 dia", tempoLongo(1))
+        assertEquals("1 ano", tempoLongo(365))
+        assertEquals("1 ano, 1 mês e 1 dia", tempoLongo(396))
+        assertEquals("2 meses e 3 dias", tempoLongo(63))
+    }
+
     @Test fun vazioOuInvalidoVoltaAoPadrao() {
         assertEquals(PADRAO, deJson(null).contadores)
         assertEquals(PADRAO, deJson("lixo").contadores)
